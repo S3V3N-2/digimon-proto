@@ -369,6 +369,7 @@ function loadModels() {
       sceneState.player = playerRoot;
 
       sceneState.playerMixer = new THREE.AnimationMixer(playerRoot);
+      console.log('Player animations available:', gltf.animations.map(c => c.name));
       gltf.animations.forEach(clip => {
         sceneState.playerActions[clip.name] = sceneState.playerMixer.clipAction(clip);
       });
