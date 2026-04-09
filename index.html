@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Digimon Gacha Prototype</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #0a0e1a;
+    color: #e8ecf4;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    overflow-x: hidden;
+  }
+  #game-root {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 12px;
+    touch-action: none;
+  }
+  h1 {
+    font-size: 16px;
+    font-weight: 500;
+    text-align: center;
+    margin: 0 0 12px;
+    color: #8fa3c7;
+    letter-spacing: 1px;
+  }
+  .cards-row { display: flex; gap: 10px; margin-bottom: 12px; }
+  .char-card {
+    flex: 1;
+    background: #141a2b;
+    border: 1px solid #243049;
+    border-radius: 12px;
+    padding: 10px;
+  }
+  .char-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 14px;
+  }
+  .avatar.player { background: #3a2810; color: #f5b042; }
+  .avatar.enemy { background: #3a1010; color: #ff6868; }
+  .char-name { margin: 0; font-size: 13px; font-weight: 600; }
+  .char-stage { margin: 0; font-size: 10px; color: #6b7a99; text-transform: uppercase; letter-spacing: 0.5px; }
+  .hp-bar-bg { height: 6px; background: #0a0e1a; border-radius: 3px; overflow: hidden; }
+  .hp-bar-fill { height: 100%; transition: width 0.3s; }
+  .hp-bar-fill.player { background: #4ade80; }
+  .hp-bar-fill.enemy { background: #ef4444; }
+  .hp-text { margin: 4px 0 0; font-size: 10px; color: #6b7a99; text-align: right; }
+  .ds-panel {
+    background: #141a2b;
+    border: 1px solid #243049;
+    border-radius: 12px;
+    padding: 10px;
+    margin-bottom: 12px;
+  }
+  .ds-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .ds-label { font-size: 11px; color: #6b7a99; text-transform: uppercase; letter-spacing: 1px; }
+  .ds-value { font-size: 12px; font-weight: 600; color: #60a5fa; }
+  .ds-bar-bg { height: 8px; background: #0a0e1a; border-radius: 4px; overflow: hidden; }
+  .ds-bar-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #60a5fa); transition: width 0.3s; box-shadow: 0 0 8px #3b82f6; }
+  .evolve-btn {
+    margin-top: 8px;
+    width: 100%;
+    background: #1e293b;
+    color: #94a3b8;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .evolve-btn.ready {
+    background: #1e3a8a;
+    color: #fff;
+    border-color: #3b82f6;
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 12px rgba(59, 130, 246, 0.5); }
+    50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.9); }
+  }
+  .log {
+    background: #141a2b;
+    border: 1px solid #243049;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: #94a3b8;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+  }
+  .grid-panel {
+    background: #141a2b;
+    border: 1px solid #243049;
+    border-radius: 12px;
+    padding: 12px;
+  }
+  #grid { width: 100%; display: block; }
+  .legend { display: flex; gap: 16px; justify-content: center; margin-top: 8px; font-size: 10px; color: #6b7a99; text-transform: uppercase; letter-spacing: 0.5px; }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+  .reset-btn {
+    margin-top: 12px;
+    width: 100%;
+    background: transparent;
+    color: #6b7a99;
+    border: 1px solid #243049;
+    border-radius: 8px;
+    padding: 8px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .footer { text-align: center; font-size: 9px; color: #3b4660; margin-top: 12px; line-height: 1.5; }
+
+  .battle-scene {
+    position: relative;
+    background: linear-gradient(180deg, #1a2540 0%, #0d1426 60%, #141a2b 100%);
+    border: 1px solid #243049;
+    border-radius: 12px;
+    height: 220px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .battle-scene::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(59, 130, 246, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59, 130, 246, 0.08) 1px, transparent 1px);
+    background-size: 24px 24px;
+    background-position: center bottom;
+    mask-image: linear-gradient(180deg, transparent 40%, #000 100%);
+    -webkit-mask-image: linear-gradient(180deg, transparent 40%, #000 100%);
+  }
+  .battle-scene::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 20px;
+    width: 80%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+    transform: translateX(-50%);
+    box-shadow: 0 0 8px #3b82f6;
+  }
+  .fighter {
+    position: absolute;
+    bottom: 20px;
+    width: 100px;
+    height: 140px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+  }
+  .fighter.player { left: 20%; transform: translateX(-50%); }
+  .fighter.enemy { left: 80%; transform: translateX(-50%); }
+  .fighter-sprite {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    border: 2px dashed rgba(255,255,255,0.2);
+  }
+  .fighter.player .fighter-sprite { background: #3a2810; color: #f5b042; }
+  .fighter.enemy .fighter-sprite { background: #3a1010; color: #ff6868; }
+  .fighter.hurt { animation: shake 0.4s; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(-50%); }
+    25% { transform: translateX(calc(-50% - 6px)); }
+    75% { transform: translateX(calc(-50% + 6px)); }
+  }
+  .hp-overlay {
+    position: absolute;
+    top: 10px;
+    width: 42%;
+    background: rgba(10, 14, 26, 0.85);
+    border: 1px solid #243049;
+    border-radius: 8px;
+    padding: 6px 10px;
+    backdrop-filter: blur(4px);
+  }
+  .hp-overlay.player { left: 10px; }
+  .hp-overlay.enemy { right: 10px; }
+  .hp-overlay .char-name { font-size: 12px; margin: 0 0 2px; font-weight: 600; }
+  .hp-overlay .char-stage { font-size: 9px; margin: 0 0 4px; color: #6b7a99; text-transform: uppercase; letter-spacing: 0.5px; }
+  .hp-overlay .hp-bar-bg { height: 5px; }
+  .hp-overlay .hp-text { font-size: 9px; margin: 3px 0 0; }
+</style>
+</head>
+<body>
+<div id="game-root">
+  <h1>DIGIMON GACHA · PROTOTYPE</h1>
+
+<div id="battle-scene" style="background: #0a0e1a; border: 1px solid #243049; border-radius: 12px; margin-bottom: 12px; height: 280px; position: relative; overflow: hidden;">
+    <canvas id="scene-canvas" style="width: 100%; height: 100%; display: block;"></canvas>
+    <div id="scene-loading" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #6b7a99;">Caricamento modelli 3D...</div>
+  </div>
+
+  <div class="cards-row">
+    <div class="char-card">
+      <div class="char-header">
+        <div class="avatar player">A</div>
+        <div>
+          <p class="char-name" id="player-name">Agumon</p>
+          <p class="char-stage" id="player-stage">Baby II</p>
+        </div>
+      </div>
+      <div class="hp-bar-bg"><div class="hp-bar-fill player" id="player-hp-bar" style="width:100%"></div></div>
+      <p class="hp-text"><span id="player-hp">800</span> / <span id="player-max-hp">800</span></p>
+    </div>
+    <div class="char-card">
+      <div class="char-header">
+        <div class="avatar enemy">K</div>
+        <div>
+          <p class="char-name">Kuwagamon</p>
+          <p class="char-stage">Champion</p>
+        </div>
+      </div>
+      <div class="hp-bar-bg"><div class="hp-bar-fill enemy" id="enemy-hp-bar" style="width:100%"></div></div>
+      <p class="hp-text"><span id="enemy-hp">1500</span> / 1500</p>
+    </div>
+  </div>
+
+  <div class="ds-panel">
+    <div class="ds-header">
+      <span class="ds-label">Digi Soul</span>
+      <span class="ds-value" id="ds-text">0 / 100</span>
+    </div>
+    <div class="ds-bar-bg"><div class="ds-bar-fill" id="ds-bar" style="width:0%"></div></div>
+    <button class="evolve-btn" id="evolve-btn" disabled>Digievolvi → Greymon (100 DS)</button>
+  </div>
+
+  <div class="log" id="log">Disegna una catena collegando nodi adiacenti dello stesso tipo.</div>
+
+  <div class="grid-panel">
+    <svg id="grid" viewBox="0 0 360 360"></svg>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#ef4444"></span>Attacco</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#22c55e"></span>Cura</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#3b82f6"></span>Difesa</span>
+    </div>
+  </div>
+
+  <button class="reset-btn" id="reset-btn">Ricomincia battaglia</button>
+
+  <p class="footer">Fan-made prototype · All Digimon rights belong to Bandai Namco<br>Non-commercial · For testing purposes only</p>
+</div>
+
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// ========== 3D BATTLE SCENE ==========
+const sceneState = {
+  scene: null,
+  camera: null,
+  renderer: null,
+  clock: new THREE.Clock(),
+  player: null,
+  enemy: null,
+  playerMixer: null,
+  enemyMixer: null,
+  playerActions: {},
+  enemyActions: {},
+  currentPlayerAction: null,
+  currentEnemyAction: null
+};
+
+function initScene() {
+  const canvas = document.getElementById('scene-canvas');
+  const container = document.getElementById('battle-scene');
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+
+  sceneState.scene = new THREE.Scene();
+  sceneState.scene.background = null;
+
+  sceneState.camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 100);
+  sceneState.camera.position.set(0, 1.8, 5);
+  sceneState.camera.lookAt(0, 0.6, 0);
+
+  sceneState.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  sceneState.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  sceneState.renderer.setSize(w, h, false);
+  sceneState.renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  const ambient = new THREE.AmbientLight(0xffffff, 0.9);
+  sceneState.scene.add(ambient);
+  const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+  dir.position.set(3, 5, 4);
+  sceneState.scene.add(dir);
+  const rim = new THREE.DirectionalLight(0x60a5fa, 0.6);
+  rim.position.set(-3, 2, -4);
+  sceneState.scene.add(rim);
+
+  const groundGeo = new THREE.CircleGeometry(5, 32);
+  const groundMat = new THREE.MeshBasicMaterial({ color: 0x1e3a5f, transparent: true, opacity: 0.3 });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = 0;
+  sceneState.scene.add(ground);
+
+  window.addEventListener('resize', onSceneResize);
+}
+
+function onSceneResize() {
+  const container = document.getElementById('battle-scene');
+  if (!container || !sceneState.renderer) return;
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  sceneState.camera.aspect = w / h;
+  sceneState.camera.updateProjectionMatrix();
+  sceneState.renderer.setSize(w, h, false);
+}
+
+function loadModels() {
+  const loader = new GLTFLoader();
+  return new Promise((resolve, reject) => {
+    loader.load('models/agumon.glb', (gltf) => {
+      // PLAYER
+      const playerRoot = gltf.scene;
+      const box = new THREE.Box3().setFromObject(playerRoot);
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const scale = 1.8 / maxDim;
+      playerRoot.scale.setScalar(scale);
+      const scaledBox = new THREE.Box3().setFromObject(playerRoot);
+      playerRoot.position.set(-0.8, -scaledBox.min.y, 1.8);
+      playerRoot.rotation.y = Math.PI;
+      sceneState.scene.add(playerRoot);
+      sceneState.player = playerRoot;
+
+      sceneState.playerMixer = new THREE.AnimationMixer(playerRoot);
+      gltf.animations.forEach(clip => {
+        sceneState.playerActions[clip.name] = sceneState.playerMixer.clipAction(clip);
+      });
+
+      // ENEMY (clone + red tint)
+      const enemyRoot = playerRoot.clone(true);
+      enemyRoot.traverse(obj => {
+        if (obj.isMesh && obj.material) {
+          const mat = obj.material.clone();
+          mat.color = new THREE.Color(0xff4444);
+          obj.material = mat;
+        }
+      });
+      enemyRoot.position.set(0.8, -scaledBox.min.y, -1.5);
+      enemyRoot.rotation.y = 0;
+      sceneState.scene.add(enemyRoot);
+      sceneState.enemy = enemyRoot;
+
+      // Enemy needs its own mixer with cloned animations
+      const enemyLoader = new GLTFLoader();
+      enemyLoader.load('models/agumon.glb', (gltf2) => {
+        // Use SkeletonUtils-like approach: just load a second instance
+        const trueEnemy = gltf2.scene;
+        const box2 = new THREE.Box3().setFromObject(trueEnemy);
+        const size2 = box2.getSize(new THREE.Vector3());
+        const maxDim2 = Math.max(size2.x, size2.y, size2.z);
+        trueEnemy.scale.setScalar(1.8 / maxDim2);
+        const sb2 = new THREE.Box3().setFromObject(trueEnemy);
+        trueEnemy.position.set(0.8, -sb2.min.y, -1.5);
+        trueEnemy.rotation.y = 0;
+
+        trueEnemy.traverse(obj => {
+          if (obj.isMesh && obj.material) {
+            const mat = obj.material.clone();
+            mat.color = new THREE.Color(0xff5555);
+            obj.material = mat;
+          }
+        });
+
+        sceneState.scene.remove(enemyRoot);
+        sceneState.scene.add(trueEnemy);
+        sceneState.enemy = trueEnemy;
+
+        sceneState.enemyMixer = new THREE.AnimationMixer(trueEnemy);
+        gltf2.animations.forEach(clip => {
+          sceneState.enemyActions[clip.name] = sceneState.enemyMixer.clipAction(clip);
+        });
+
+        playAction('player', 'idle', true);
+        playAction('enemy', 'idle', true);
+
+        document.getElementById('scene-loading').style.display = 'none';
+        resolve();
+      }, undefined, reject);
+    }, undefined, reject);
+  });
+}
+
+function playAction(who, name, loop) {
+  const mixer = who === 'player' ? sceneState.playerMixer : sceneState.enemyMixer;
+  const actions = who === 'player' ? sceneState.playerActions : sceneState.enemyActions;
+  const currentKey = who === 'player' ? 'currentPlayerAction' : 'currentEnemyAction';
+  if (!mixer || !actions[name]) return;
+  const next = actions[name];
+  const current = sceneState[currentKey];
+  if (current === next) return;
+  next.reset();
+  next.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1);
+  next.clampWhenFinished = !loop;
+  next.fadeIn(0.2).play();
+  if (current) current.fadeOut(0.2);
+  sceneState[currentKey] = next;
+
+  if (!loop) {
+    mixer.addEventListener('finished', function onEnd(e) {
+      if (e.action === next) {
+        mixer.removeEventListener('finished', onEnd);
+        playAction(who, 'idle', true);
+      }
+    });
+  }
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = sceneState.clock.getDelta();
+  if (sceneState.playerMixer) sceneState.playerMixer.update(dt);
+  if (sceneState.enemyMixer) sceneState.enemyMixer.update(dt);
+  if (sceneState.renderer) sceneState.renderer.render(sceneState.scene, sceneState.camera);
+}
+
+// Expose playAction to the game logic below
+window.__playAction = playAction;
+
+initScene();
+loadModels().then(() => {
+  animate();
+}).catch(err => {
+  console.error('Failed to load models:', err);
+  document.getElementById('scene-loading').textContent = 'Errore caricamento modelli';
+});
+
+// ========== GAME LOGIC ==========
+(function() {
+  const TYPES = ['atk', 'heal', 'def'];
+  const COLORS = { atk: '#ef4444', heal: '#22c55e', def: '#3b82f6' };
+  const COLORS_DIM = { atk: '#7f1d1d', heal: '#14532d', def: '#1e3a8a' };
+  const SYMBOLS = { atk: '⚔', heal: '✚', def: '◆' };
+
+  const initialState = () => ({
+    player: { hp: 800, maxHp: 800, atk: 100, def: 0, evolved: false },
+    enemy: { hp: 1500, maxHp: 1500, atk: 180 },
+    digiSoul: 0,
+    chain: [],
+    isDrawing: false,
+    nodes: [],
+    gameOver: false
+  });
+
+  let state = initialState();
+
+  const svg = document.getElementById('grid');
+  const NS = 'http://www.w3.org/2000/svg';
+  const VB_W = 360, VB_H = 360;
+  const CENTER_X = 180, CENTER_Y = 180;
+  const NODE_R = 22;
+  const RING_RADII = [0, 60, 115];
+  const RING_COUNTS = [1, 6, 12];
+  const ADJ_DIST = 62;
+
+  function areAdjacent(a, b) {
+    const dx = a.x - b.x, dy = a.y - b.y;
+    return Math.sqrt(dx * dx + dy * dy) <= ADJ_DIST;
+  }
+
+  function buildGrid() {
+    const nodes = [];
+    let id = 0;
+    for (let ring = 0; ring < RING_RADII.length; ring++) {
+      const count = RING_COUNTS[ring];
+      const radius = RING_RADII[ring];
+      const angleOffset = ring === 1 ? -Math.PI / 2 : (ring === 2 ? -Math.PI / 2 + Math.PI / 12 : 0);
+      for (let i = 0; i < count; i++) {
+        const angle = angleOffset + (Math.PI * 2 * i) / count;
+        nodes.push({
+          id: id++,
+          x: CENTER_X + Math.cos(angle) * radius,
+          y: CENTER_Y + Math.sin(angle) * radius,
+          ring,
+          type: TYPES[Math.floor(Math.random() * 3)]
+        });
+      }
+    }
+    return nodes;
+  }
+
+  function render() {
+    svg.innerHTML = '';
+
+    const bg = document.createElementNS(NS, 'g');
+    const chipBg = document.createElementNS(NS, 'rect');
+    chipBg.setAttribute('x', 20);
+    chipBg.setAttribute('y', 20);
+    chipBg.setAttribute('width', 320);
+    chipBg.setAttribute('height', 320);
+    chipBg.setAttribute('rx', 24);
+    chipBg.setAttribute('fill', '#0d1426');
+    chipBg.setAttribute('stroke', '#1e3a5f');
+    chipBg.setAttribute('stroke-width', 1.5);
+    bg.appendChild(chipBg);
+
+    for (let i = 0; i < 4; i++) {
+      [20, 340].forEach(x => {
+        const pin = document.createElementNS(NS, 'rect');
+        pin.setAttribute('x', x === 20 ? 8 : 340);
+        pin.setAttribute('y', 70 + i * 60);
+        pin.setAttribute('width', 12);
+        pin.setAttribute('height', 8);
+        pin.setAttribute('rx', 2);
+        pin.setAttribute('fill', '#243049');
+        bg.appendChild(pin);
+      });
+      [20, 340].forEach(y => {
+        const pin = document.createElementNS(NS, 'rect');
+        pin.setAttribute('x', 70 + i * 60);
+        pin.setAttribute('y', y === 20 ? 8 : 340);
+        pin.setAttribute('width', 8);
+        pin.setAttribute('height', 12);
+        pin.setAttribute('rx', 2);
+        pin.setAttribute('fill', '#243049');
+        bg.appendChild(pin);
+      });
+    }
+
+    RING_RADII.forEach((rad, i) => {
+      if (rad === 0) return;
+      const ring = document.createElementNS(NS, 'circle');
+      ring.setAttribute('cx', CENTER_X);
+      ring.setAttribute('cy', CENTER_Y);
+      ring.setAttribute('r', rad);
+      ring.setAttribute('fill', 'none');
+      ring.setAttribute('stroke', '#1a2540');
+      ring.setAttribute('stroke-width', 1);
+      ring.setAttribute('stroke-dasharray', '2,4');
+      bg.appendChild(ring);
+    });
+
+    const coreCircle = document.createElementNS(NS, 'circle');
+    coreCircle.setAttribute('cx', CENTER_X);
+    coreCircle.setAttribute('cy', CENTER_Y);
+    coreCircle.setAttribute('r', 140);
+    coreCircle.setAttribute('fill', 'none');
+    coreCircle.setAttribute('stroke', '#1e3a5f');
+    coreCircle.setAttribute('stroke-width', 1);
+    bg.appendChild(coreCircle);
+
+    svg.appendChild(bg);
+
+    const lineLayer = document.createElementNS(NS, 'g');
+    svg.appendChild(lineLayer);
+
+    if (state.chain.length > 1) {
+      for (let i = 1; i < state.chain.length; i++) {
+        const a = state.nodes[state.chain[i-1]];
+        const b = state.nodes[state.chain[i]];
+        const line = document.createElementNS(NS, 'line');
+        line.setAttribute('x1', a.x);
+        line.setAttribute('y1', a.y);
+        line.setAttribute('x2', b.x);
+        line.setAttribute('y2', b.y);
+        line.setAttribute('stroke', COLORS[a.type]);
+        line.setAttribute('stroke-width', '5');
+        line.setAttribute('stroke-linecap', 'round');
+        line.setAttribute('opacity', '0.95');
+        line.style.filter = 'drop-shadow(0 0 4px ' + COLORS[a.type] + ')';
+        lineLayer.appendChild(line);
+      }
+    }
+
+    state.nodes.forEach(n => {
+      const g = document.createElementNS(NS, 'g');
+      const inChain = state.chain.includes(n.id);
+      const circle = document.createElementNS(NS, 'circle');
+      circle.setAttribute('cx', n.x);
+      circle.setAttribute('cy', n.y);
+      circle.setAttribute('r', NODE_R);
+      circle.setAttribute('fill', inChain ? COLORS[n.type] : COLORS_DIM[n.type]);
+      circle.setAttribute('stroke', COLORS[n.type]);
+      circle.setAttribute('stroke-width', inChain ? '3' : '1.5');
+      if (inChain) circle.style.filter = 'drop-shadow(0 0 6px ' + COLORS[n.type] + ')';
+      g.appendChild(circle);
+
+      const label = document.createElementNS(NS, 'text');
+      label.setAttribute('x', n.x);
+      label.setAttribute('y', n.y + 6);
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('font-size', '18');
+      label.setAttribute('font-weight', '600');
+      label.setAttribute('fill', '#fff');
+      label.textContent = SYMBOLS[n.type];
+      g.appendChild(label);
+      svg.appendChild(g);
+    });
+  }
+
+  function getNodeAt(clientX, clientY) {
+    const rect = svg.getBoundingClientRect();
+    const sx = (clientX - rect.left) * (VB_W / rect.width);
+    const sy = (clientY - rect.top) * (VB_H / rect.height);
+    for (const n of state.nodes) {
+      const dx = sx - n.x, dy = sy - n.y;
+      if (dx * dx + dy * dy < NODE_R * NODE_R) return n;
+    }
+    return null;
+  }
+
+  function tryAddNode(n) {
+    if (!n || state.gameOver) return;
+    if (state.chain.length === 0) {
+      state.chain.push(n.id);
+      render();
+      return;
+    }
+    if (state.chain.includes(n.id)) return;
+    const last = state.nodes[state.chain[state.chain.length - 1]];
+    if (!areAdjacent(last, n)) return;
+    state.chain.push(n.id);
+    render();
+  }
+
+  function resolveChain() {
+    if (state.chain.length < 2) {
+      state.chain = [];
+      render();
+      return;
+    }
+    const len = state.chain.length;
+    const counts = { atk: 0, heal: 0, def: 0 };
+    state.chain.forEach(id => counts[state.nodes[id].type]++);
+    const pure = (counts.atk === len || counts.heal === len || counts.def === len);
+    const purityBonus = pure ? 1.5 : 1;
+    const log = document.getElementById('log');
+    const parts = [];
+
+    if (counts.atk > 0) {
+      const evolveMult = state.player.evolved ? 2.2 : 1;
+      const dmg = Math.round(state.player.atk * counts.atk * purityBonus * evolveMult);
+      state.enemy.hp = Math.max(0, state.enemy.hp - dmg);
+      parts.push('ATK x' + counts.atk + ' → -' + dmg);
+      if (window.__playAction) {
+        const atkAnim = counts.atk >= 4 ? 'special01' : (counts.atk >= 2 ? 'attack02' : 'attack01');
+        window.__playAction('player', atkAnim, false);
+        setTimeout(() => window.__playAction && window.__playAction('enemy', 'damage', false), 400);
+      }
+    }
+    if (counts.heal > 0) {
+      const heal = Math.round(60 * counts.heal * purityBonus);
+      state.player.hp = Math.min(state.player.maxHp, state.player.hp + heal);
+      parts.push('HEAL x' + counts.heal + ' → +' + heal);
+    }
+    if (counts.def > 0) {
+      state.player.def = Math.min(80, Math.round(20 * counts.def * purityBonus));
+      parts.push('DEF x' + counts.def + ' → ' + state.player.def + '%');
+      if (counts.atk === 0 && window.__playAction) {
+        window.__playAction('player', 'guard', false);
+      }
+    }
+
+    let msg = parts.join(' · ');
+    if (pure) msg += ' [PURA +50%]';
+
+    state.digiSoul = Math.min(100, state.digiSoul + len * 8);
+
+    state.chain.forEach(id => {
+      state.nodes[id].type = TYPES[Math.floor(Math.random() * 3)];
+    });
+    state.chain = [];
+
+    if (state.enemy.hp > 0) {
+      const incoming = state.enemy.atk;
+      const reduced = Math.round(incoming * (1 - state.player.def / 100));
+      state.player.hp = Math.max(0, state.player.hp - reduced);
+      msg += ' · Nemico: -' + reduced;
+      state.player.def = 0;
+      if (window.__playAction) {
+        setTimeout(() => {
+          window.__playAction('enemy', 'attack01', false);
+          setTimeout(() => window.__playAction('player', 'damage', false), 400);
+        }, 900);
+      }
+    }
+
+    log.textContent = msg;
+    updateUI();
+    render();
+
+    if (state.player.hp === 0) {
+      log.textContent = 'Sconfitto! Premi "Ricomincia" per riprovare.';
+      state.gameOver = true;
+      if (window.__playAction) {
+        setTimeout(() => window.__playAction('player', 'down', false), 500);
+      }
+    } else if (state.enemy.hp === 0) {
+      log.textContent = 'VITTORIA! Kuwagamon è stato eliminato.';
+      state.gameOver = true;
+      if (window.__playAction) {
+        setTimeout(() => {
+          window.__playAction('player', 'win', false);
+          window.__playAction('enemy', 'down', false);
+        }, 500);
+      }
+    }
+  }
+
+  function updateUI() {
+    document.getElementById('player-hp').textContent = state.player.hp;
+    document.getElementById('player-max-hp').textContent = state.player.maxHp;
+    document.getElementById('enemy-hp').textContent = state.enemy.hp;
+    document.getElementById('player-hp-bar').style.width = (state.player.hp / state.player.maxHp * 100) + '%';
+    document.getElementById('enemy-hp-bar').style.width = (state.enemy.hp / state.enemy.maxHp * 100) + '%';
+    document.getElementById('ds-text').textContent = state.digiSoul + ' / 100';
+    document.getElementById('ds-bar').style.width = state.digiSoul + '%';
+    const btn = document.getElementById('evolve-btn');
+    if (state.digiSoul >= 100 && !state.player.evolved) {
+      btn.disabled = false;
+      btn.classList.add('ready');
+    } else if (state.player.evolved) {
+      btn.disabled = true;
+      btn.classList.remove('ready');
+      btn.textContent = 'Evoluto in Greymon';
+    }
+  }
+
+  document.getElementById('evolve-btn').addEventListener('click', () => {
+    if (state.digiSoul < 100 || state.player.evolved) return;
+    state.digiSoul = 0;
+    state.player.evolved = true;
+    state.player.atk = 220;
+    state.player.maxHp = 1400;
+    state.player.hp = 1400;
+    document.getElementById('player-name').textContent = 'Greymon';
+    document.getElementById('player-stage').textContent = 'Champion';
+    document.querySelector('.avatar.player').textContent = 'G';
+    document.getElementById('log').textContent = 'Agumon digievolve in... GREYMON!';
+    if (window.__playAction) window.__playAction('player', 'special01', false);
+    updateUI();
+  });
+
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    state = initialState();
+    state.nodes = buildGrid();
+    document.getElementById('player-name').textContent = 'Agumon';
+    document.getElementById('player-stage').textContent = 'Baby II';
+    document.querySelector('.avatar.player').textContent = 'A';
+    const btn = document.getElementById('evolve-btn');
+    btn.textContent = 'Digievolvi → Greymon (100 DS)';
+    btn.classList.remove('ready');
+    btn.disabled = true;
+    document.getElementById('log').textContent = 'Nuova battaglia! Disegna una catena.';
+    if (window.__playAction) {
+      window.__playAction('player', 'idle', true);
+      window.__playAction('enemy', 'idle', true);
+    }
+    updateUI();
+    render();
+  });
+
+  function onDown(e) {
+    e.preventDefault();
+    const t = e.touches ? e.touches[0] : e;
+    const n = getNodeAt(t.clientX, t.clientY);
+    if (n) {
+      state.isDrawing = true;
+      state.chain = [];
+      tryAddNode(n);
+    }
+  }
+  function onMove(e) {
+    if (!state.isDrawing) return;
+    e.preventDefault();
+    const t = e.touches ? e.touches[0] : e;
+    const n = getNodeAt(t.clientX, t.clientY);
+    if (n) tryAddNode(n);
+  }
+  function onUp() {
+    if (!state.isDrawing) return;
+    state.isDrawing = false;
+    resolveChain();
+  }
+
+  svg.addEventListener('mousedown', onDown);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+  svg.addEventListener('touchstart', onDown, { passive: false });
+  svg.addEventListener('touchmove', onMove, { passive: false });
+  svg.addEventListener('touchend', onUp);
+
+  state.nodes = buildGrid();
+  render();
+  updateUI();
+})();
+</script>
+</body>
+</html>
