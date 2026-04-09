@@ -432,6 +432,7 @@ function playAction(who, name, loop) {
   const mixer = who === 'player' ? sceneState.playerMixer : sceneState.enemyMixer;
   const actions = who === 'player' ? sceneState.playerActions : sceneState.enemyActions;
   const currentKey = who === 'player' ? 'currentPlayerAction' : 'currentEnemyAction';
+  console.log(`playAction(${who}, ${name}, ${loop})`, { mixer: !!mixer, hasAction: !!actions[name], availableActions: Object.keys(actions) });
   if (!mixer || !actions[name]) return;
   const next = actions[name];
   const current = sceneState[currentKey];
